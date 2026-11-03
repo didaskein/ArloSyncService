@@ -1,5 +1,5 @@
 name: New AI use case
-description: "Request a new AI use case on the Contoso GenAI platform (D1): its resource group and components in the GenAI landing zone. The request opens a pull request with the use-case definition and its Terraform plan."
+description: "Request a new AI use case on the Contoso GenAI platform (D1): its resource group and components in the GenAI landing zone. Opens a pull request with its definition and Terraform plan."
 title: "[AI use case] <use-case name>"
 labels: ["ai-usecase-request"]
 body:
