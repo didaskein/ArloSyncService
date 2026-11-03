@@ -1,0 +1,261 @@
+name: New AI use case
+description: "Request a new AI use case on the Contoso GenAI platform (D1): its resource group and components in the GenAI landing zone. The request opens a pull request with the use-case definition and its Terraform plan."
+title: "[AI use case] <use-case name>"
+labels: ["ai-usecase-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This form generates `deployment/variables/_referentials/use-cases/<use case>.yml` and the Terragrunt folders of the selected environments,
+        then opens a pull request and runs the Terraform plan. The platform team reviews and merges the pull request, then deploys it.
+
+        Every use case always gets its resource group, a user-assigned identity for the Container Apps and jobs, a developers Entra group per environment,
+        a Log Analytics workspace and the RBAC of its components, plus the deployment identity of its application repository when you give one.
+        Select below the PaaS components you need, and list the Container Apps and jobs.
+
+        Required: the use-case name, the display name, the APM ID, the Contoso use-case owner and at least one environment, the ISD use-case owner with isd,
+        and the fields marked "Required with" a component when you select that component. The other fields are optional; the settings of a
+        component that you do not select are ignored. The README of `.github/ISSUE_TEMPLATE` describes every field.
+
+        Editing the issue regenerates the pull request. Values that the form does not expose (rate limits, cost limits, PostgreSQL SKU,
+        AI Search tier and container name, Azure Managed Redis SKU, Graph permissions of the bot) can be changed in the pull request. The application
+        pipeline deploys the images of the Container Apps and jobs and sets their port, replicas, CPU, memory, schedule and timeout.
+
+  - type: input
+    id: usecase_name
+    attributes:
+      label: Use-case name
+      description: "Naming token of every resource: 2 to 11 lowercase letters or digits, starting with a letter (Container App names are limited to 32 characters)."
+      placeholder: sampleapp
+    validations:
+      required: true
+
+  - type: input
+    id: display_name
+    attributes:
+      label: Display name
+      description: Readable name of the use case, used in the descriptions of its Entra groups, the display name of its Azure Bot and the pull request.
+      placeholder: Sample App
+    validations:
+      required: true
+
+  - type: input
+    id: apm_id
+    attributes:
+      label: APM ID
+      description: Application ID of the Contoso application portfolio (ApplicationId tag of every resource of the use case).
+      placeholder: APM0000001
+    validations:
+      required: true
+
+  - type: input
+    id: owner_contoso
+    attributes:
+      label: Use-case owner (Contoso UPN)
+      description: "Owner of the Entra objects of the use case in the Contoso tenant (dev, uat, prod): developers group, app registration, bot administrators group, extra Entra groups. Manages their members; Owner tag of these environments. Required even when only isd is selected."
+      placeholder: firstname.lastname@contoso.com
+    validations:
+      required: true
+
+  - type: input
+    id: owner_microsoft
+    attributes:
+      label: Use-case owner in the Fabrikam ISD tenant (required with isd)
+      description: "Required when isd is selected, ignored otherwise: same role as the Contoso use-case owner in the Fabrikam ISD tenant, and Owner tag of isd."
+      placeholder: admin@contoso.onmicrosoft.com
+    validations:
+      required: false
+
+  - type: input
+    id: github_repository
+    attributes:
+      label: Application GitHub repository
+      description: "<organization>/<repository> of the application code (optional), with the exact case of GitHub. The platform creates its deployment identity in each environment (GitHub OIDC, no secret): set its client ID as the ARM_CLIENT_ID variable of the GitHub environment <region>-<env>-deploy of the repository."
+      placeholder: contoso-apps/sampleapp-ai
+    validations:
+      required: false
+
+  - type: input
+    id: github_oidc_subject_prefix
+    attributes:
+      label: OIDC subject prefix of the repository
+      description: "Optional. Repositories created, renamed or transferred since July 15, 2026 sign their OIDC tokens with immutable IDs: repo:<organization>@<id>/<repository>@<id>. Copy the output of `gh api repos/<organization>/<repository>/actions/oidc/customization/sub --jq .sub_claim_prefix` (any account that reads the repository). Empty: read from GitHub when the repository is public, otherwise repo:<organization>/<repository>."
+      placeholder: repo:contoso-apps@123456789/sampleapp-ai@987654321
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: environments
+    attributes:
+      label: Environments
+      description: Environments where the use case is deployed, at least one (isd is the Fabrikam internal sandbox).
+      options:
+        - label: isd
+        - label: dev
+        - label: uat
+        - label: prod
+
+  - type: textarea
+    id: developers
+    attributes:
+      label: Developers
+      description: "One line per Entra identity: `<name>,[<environments>],[<public IPs>],<user principal name>`. The identity joins the developers group of the listed environments. The public IPs (x.x.x.x/32 or CIDR, `[]` for none) are opened on the public endpoints of the use case only, in isd and dev. A developer with an identity in the Fabrikam tenant (isd) and in the Contoso tenant (dev, uat, prod) needs two lines with two names."
+      placeholder: |
+        user1-ms,["isd"],["203.0.113.10/32"],admin@contoso.onmicrosoft.com
+        user1-contoso,["dev","uat"],["203.0.113.10/32"],first.last@contoso.com
+    validations:
+      required: false
+
+  - type: textarea
+    id: entra_groups
+    attributes:
+      label: Entra groups
+      description: "Optional Entra security groups besides the developers groups, one per line: `<group name>,<environment>,[<members>]`. The name and the environment are required, the member list can be empty (`[]`). Contoso naming convention `[environment]-[app]-[usage]-[type]-[audience]`: `<env>-<use case>-<usage>-sg`, followed by `-02` in dev, uat and prod (lowercase letters, digits and hyphens). Owners: the use-case owner and the DevOps deployment identity (Terraform). Members: user principal names of the tenant of the environment; the use-case owner can add others in Entra ID."
+      placeholder: |
+        isd-sampleapp-reviewers-sg,isd,["user1@contoso.onmicrosoft.com","user2@contoso.onmicrosoft.com"]
+        dev-sampleapp-reviewers-sg-02,dev,["user1@contoso.com","user3@contoso.com"]
+        uat-sampleapp-reviewers-sg-02,uat,["user1@contoso.com","user3@contoso.com"]
+        prod-sampleapp-reviewers-sg-02,prod,[]
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: components
+    attributes:
+      label: Components
+      description: "Optional PaaS components of the use case (private endpoints and diagnostic settings included). Without component, the use case gets its base resources only."
+      options:
+        - label: App registration (SSO of the backend, secrets in the Key Vault)
+        - label: Key Vault
+        - label: Storage account
+        - label: PostgreSQL (Entra authentication only)
+        - label: Foundry project
+        - label: AI Gateway access
+        - label: AI Search (Entra ID only; indexing mode below)
+        - label: Azure Managed Redis (conversation state of an agent; Entra ID only, private endpoint only)
+        - label: Azure Bot (Teams and Web Chat channels, SSO without secret; calls a Container App with an external ingress)
+
+  - type: dropdown
+    id: ai_search_mode
+    attributes:
+      label: AI Search indexing
+      description: "Pull: indexers read the `index` container of the use-case storage through a shared private link (built-in skills only: skills and vectorizers cannot call the models through the AI Gateway). Push: the application computes the vectors through its AI Gateway alias and uploads the documents (no indexer, no storage access for the search service). Ignored without AI Search."
+      options:
+        - Pull (indexers read the 'index' container)
+        - Push (the application uploads the documents)
+      default: 0
+    validations:
+      required: false
+
+  - type: input
+    id: bot_container_app
+    attributes:
+      label: Bot Container App
+      description: "Required with the Azure Bot: key of the Container App (external ingress, listed below) that receives the bot messages on `/api/messages`. The bot uses the identity of the use case (no secret). Messaging endpoint: `https://<use case>-bot.<Application Gateway domain>/api/messages` on the Application Gateway of the landing zone (route to request: LandingZone in isd, Contoso in dev, uat and prod)."
+      placeholder: agent
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: bot_options
+    attributes:
+      label: Azure Bot options
+      description: "Administrators group: empty Entra group `<env>-<use case>-bot-admins-sg` per environment, members managed in Entra ID by the use-case owner; the agent checks the membership of the signed-in user through Fabrikam Graph."
+      options:
+        - label: Create an administrators group
+
+  - type: textarea
+    id: container_apps
+    attributes:
+      label: Container Apps
+      description: "Container Apps of the use case, one per line: `<key>[,<ingress>]`. The key (1 to 10 lowercase letters or digits) names the app `ca-eu01-<env>-<use case>-<key>-<##>` (32 characters maximum). Ingress: `external` (default; developers IPs only in isd and dev), `internal` (reachable from the Container Apps environment only) or `none` (worker without HTTP endpoint). Terraform creates the app with the use-case identity and a placeholder image; the application pipeline deploys the image and sets the port, replicas, CPU, memory and environment variables. Leave empty for no Container App; the Azure Bot needs one with an external ingress."
+      placeholder: |
+        api
+        worker,none
+    validations:
+      required: false
+
+  - type: textarea
+    id: container_app_jobs
+    attributes:
+      label: Container App jobs
+      description: "Scheduled Container App jobs of the use case, one key per line (1 to 10 lowercase letters or digits): `caj-eu01-<env>-<use case>-<key>-<##>` (32 characters maximum). Terraform creates the job with the use-case identity and a placeholder image; the application pipeline deploys the image and sets the schedule and the timeout. Leave empty for no job."
+      placeholder: |
+        job
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: models
+    attributes:
+      label: AI Gateway models
+      description: Required with AI Gateway access. Models of the shared Foundry exposed to the use case through the AI Gateway (one alias per model).
+      options:
+        - label: gpt-4.1
+        - label: gpt-5.4
+        - label: gpt-5.4-mini
+        - label: text-embedding-3-large
+
+  - type: input
+    id: callback_path
+    attributes:
+      label: SSO callback path
+      description: "With the app registration (prefilled, `/` when empty): path added to the URL of each Container App with an external ingress to build the redirect URIs of the app registration."
+      value: /api/auth/callback/microsoft
+    validations:
+      required: false
+
+  - type: textarea
+    id: redirect_uris
+    attributes:
+      label: Extra redirect URIs
+      description: "Optional, with the app registration: application DNS names, one per line, prefixed by the environment. The URL of each Container App with an external ingress is always added; without such an app, list at least one URI."
+      placeholder: |
+        dev: https://sampleapp-dev.contoso.com/api/auth/callback/microsoft
+        prod: https://sampleapp.contoso.com/api/auth/callback/microsoft
+    validations:
+      required: false
+
+  - type: textarea
+    id: app_roles
+    attributes:
+      label: App roles
+      description: "Optional, with the app registration: roles of the app registration, one per line: `Value: Display name`."
+      placeholder: |
+        Admin: Sample App administrator
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: key_vault_options
+    attributes:
+      label: Key Vault options
+      description: "auth-secret: random 64-character secret for applications that sign or encrypt their own session cookies (better-auth BETTER_AUTH_SECRET, Auth.js AUTH_SECRET). It stays the same across deployments and replicas. Leave unchecked when the application does not need it. With Container Apps, the Key Vault always holds healthcheck-detail-token, a random GUID per environment that protects the /healthcheckdetail endpoint of the agents."
+      options:
+        - label: Generate an application session secret (auth-secret)
+
+  - type: input
+    id: storage_containers
+    attributes:
+      label: Storage containers
+      description: "Optional, with the storage account: comma-separated blob container names (the `index` container of the AI Search pull mode is added automatically)."
+      placeholder: app-sample-app
+    validations:
+      required: false
+
+  - type: input
+    id: postgresql_databases
+    attributes:
+      label: PostgreSQL databases
+      description: Required with PostgreSQL. Comma-separated database names (owned by the use-case identity).
+      placeholder: sampleapp
+    validations:
+      required: false
+
+  - type: textarea
+    id: comments
+    attributes:
+      label: Additional information
+      description: Context for the platform team (not used by the automation).
+    validations:
+      required: false
